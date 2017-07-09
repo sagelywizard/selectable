@@ -7,20 +7,6 @@ import selectable
 class CustomObject(object):
     pass
 
-#def make_concurrent_class(parent):
-#    class Concurrent(parent):
-#        def __init__(self, pipe):
-#            self.pipe = pipe
-#            super(Concurrent, self).__init__()
-#
-#        def run(self):
-#            msg = None
-#            while msg != 'shutdown':
-#                msg = self.pipe.read()
-#                self.pipe.write(['ok', msg])
-#
-#    return Concurrent
-
 def make_concurrent_class(parent):
     class Concurrent(parent):
         def __init__(self, pipe):
