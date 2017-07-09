@@ -2,7 +2,7 @@ import unittest
 import threading
 import multiprocessing
 
-import selectable
+from context import selectable
 
 class CustomObject(object):
     pass
