@@ -12,6 +12,9 @@ class UniPipe(object):
         self.write_pipe = os.fdopen(write_pipe, 'wb')
         self.__is_open = False
 
+    def __del__(self):
+        self.close()
+
     def is_open(self):
         return self.__is_open
 
@@ -27,6 +30,7 @@ class UniPipe(object):
         try:
             return pickle.load(self.read_pipe)
         except EOFError:
+            self.read_pipe.close()
             self.__is_open = False
 
     def write(self, data):
@@ -36,6 +40,10 @@ class UniPipe(object):
     def fileno(self):
         """Required for doing a select. See select.select documentation."""
         return self.read_pipe.fileno()
+
+    def close(self):
+        self.read_pipe.close()
+        self.write_pipe.close()
 
 class Pipe(object):
     """
@@ -68,6 +76,9 @@ class Pipe(object):
         self.write_pipe = None
         self.read_pipe = None
 
+    def __del__(self):
+        self.close()
+
     def use_right(self):
         """Claim the right channel. Must be called post-fork."""
         self.right.writable()
@@ -91,3 +102,7 @@ class Pipe(object):
     def fileno(self):
         """Required for select. See select.select documentation."""
         return self.read_pipe.fileno()
+
+    def close(self):
+        self.left.close()
+        self.right.close()
