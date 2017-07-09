@@ -10,7 +10,7 @@ class UniPipe(object):
         read_pipe, write_pipe = os.pipe()
         self.read_pipe = os.fdopen(read_pipe, 'rb')
         self.write_pipe = os.fdopen(write_pipe, 'wb')
-        self.__is_open = False
+        self.__is_open = True
 
     def __del__(self):
         self.close()
@@ -42,6 +42,7 @@ class UniPipe(object):
         return self.read_pipe.fileno()
 
     def close(self):
+        self.__is_open = False
         self.read_pipe.close()
         self.write_pipe.close()
 
