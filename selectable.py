@@ -8,8 +8,8 @@ class UniPipe(object):
     """
     def __init__(self):
         read_pipe, write_pipe = os.pipe()
-        self.read_pipe = os.fdopen(read_pipe, 'rb')
-        self.write_pipe = os.fdopen(write_pipe, 'wb')
+        self.read_pipe = os.fdopen(read_pipe, 'rb', 0)
+        self.write_pipe = os.fdopen(write_pipe, 'wb', 0)
         self.__is_open = True
 
     def __del__(self):
