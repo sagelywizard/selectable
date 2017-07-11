@@ -2,7 +2,7 @@ import unittest
 import threading
 import multiprocessing
 
-from context import selectable
+import selectable
 
 class CustomObject(object):
     pass
@@ -56,3 +56,4 @@ class TestUniPipe(unittest.TestCase):
         self.assertFalse(conc.is_alive())
         pipe.close()
         self.assertFalse(pipe.is_open())
+
