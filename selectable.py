@@ -1,5 +1,7 @@
 import os
 import pickle
+import struct
+import functools
 
 class UniPipe(object):
     """A selectable unidirectional pipe, usable between processes.
@@ -107,3 +109,135 @@ class Pipe(object):
     def close(self):
         self.left.close()
         self.right.close()
+
+class RPCFuncHandler(object):
+    def __init__(self, fun):
+        self.fun = fun
+
+    def __getattr__(self, func_name):
+        return functools.partial(self.fun, func_name)
+
+class RPCClient(object):
+    def __init__(self, client_obj, handlers=None):
+        self.client_obj = client_obj
+        self.rpc = RPCHandler(client_obj)
+        if handlers is None:
+            self.handlers = {}
+        else:
+            self.handlers = handlers
+        self.sync = RPCFuncHandler(self._sync)
+        self.async = RPCFuncHandler(self._async)
+
+    def add_handler(self, name, func):
+        self.handlers[name] = func
+
+    def execute(self):
+        msg_type, func_name, args, kwargs = self.read()
+        assert msg_type in ['syncrequest', 'asyncrequest']
+        resp = self.handlers[func_name](*args, **kwargs)
+        if msg_type == 'syncrequest':
+            self.write(('response', resp))
+
+    def _sync(self, func_name, *args, **kwargs):
+        self.write(('syncrequest', func_name, args, kwargs))
+        msg = self.read()
+        while msg[0] in ['syncrequest', 'asyncrequest']:
+            _, func_name, args, kwargs = msg
+            resp = self.handlers[func_name](*args, **kwargs)
+            if msg[0] == 'syncrequest':
+                self.write(('response', resp))
+            msg = self.read()
+
+        if msg[0] == 'error':
+            if msg[1] == 'UnknownRPCError':
+                raise UnknownRPCError
+            raise RPCError(msg[1])
+
+        return msg[1]
+
+    def _async(self, func_name, *args, **kwargs):
+        self.write(('asyncrequest', func_name, args, kwargs))
+
+    def fileno(self):
+        return self.client_obj.fileno()
+
+    def close(self):
+        self.client_obj.close()
+
+    def write(self, msg):
+        raise NotImplementedError
+
+    def read(self):
+        raise NotImplementedError
+
+class RPCPipe(RPCClient):
+    def __init__(self, pipe):
+        self.pipe = pipe
+        super(RPCPipe, self).__init__(pipe)
+
+    def write(self, msg):
+        self.pipe.write(msg)
+
+    def read(self):
+        return self.pipe.read()
+
+class RPCSocket(RPCClient):
+    def __init__(self, sock, handlers=None):
+        if handlers is None:
+            handlers = {}
+        self.sock = sock
+        self.buff = b''
+        super(RPCSocket, self).__init__(self.sock, handlers=handlers)
+
+    def write(self, msg):
+        binary = pickle.dumps(msg)
+        header = struct.pack('!L', len(binary))
+        self.sock.sendall(b'%b%b' % (header, binary))
+
+    def read(self):
+        while len(self.buff) < 4:
+            read = self.sock.recv(1024)
+            if read == b'':
+                return None
+            self.buff += read
+
+        (length,) = struct.unpack('!L', self.buff[0:4])
+
+        while len(self.buff) < (length+4):
+            read = self.sock.recv(1024)
+            if read == b'':
+                return None
+            self.buff += read
+
+        pick = self.buff[4:length+4]
+        self.buff = self.buff[length+4:]
+        return pickle.loads(pick)
+
+class UnknownRPCError(Exception):
+    pass
+
+class RPCError(Exception):
+    pass
+
+class RPCHandler(object):
+    def __init__(self, client_obj):
+        self.client_obj = client_obj
+
+    def __getattr__(self, func):
+        return RPCCaller(self.client_obj, func)
+
+class RPCCaller(object):
+    def __init__(self, client_obj, func_name):
+        self.client_obj = client_obj
+        self.func_name = func_name
+
+    def __call__(self, *args, **kwargs):
+        self.client_obj.write((self.func_name, args, kwargs))
+        (msg_type, msg) = self.client_obj.read()
+        assert msg_type in ['return', 'error']
+        if msg_type == 'error':
+            if msg == 'UnknownRPCError':
+                raise UnknownRPCError
+            raise RPCError(msg)
+
+        return msg
