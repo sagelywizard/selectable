@@ -171,9 +171,9 @@ class RPCClient(object):
         raise NotImplementedError
 
 class RPCPipe(RPCClient):
-    def __init__(self, pipe):
+    def __init__(self, pipe, handlers=None):
         self.pipe = pipe
-        super(RPCPipe, self).__init__(pipe)
+        super(RPCPipe, self).__init__(pipe, handlers=handlers)
 
     def write(self, msg):
         self.pipe.write(msg)
